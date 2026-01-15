@@ -32,6 +32,14 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
 <script>
+  let targetX = 0;
+  let targetY = 0;
+  let targetZ = 0;
+
+  let smoothX = 0;
+  let smoothY = 0;
+  let smoothZ = 0;
+
 // ================= THREE.JS SCENE =================
 const scene = new THREE.Scene();
 
@@ -104,21 +112,35 @@ hands.onResults(res => {
   if (!res.multiHandLandmarks) return;
 
   const lm = res.multiHandLandmarks[0];
+
   const index = lm[8];
   const thumb = lm[4];
+  const wrist = lm[0];
 
-  const ix = (index.x - 0.5) * 8;
-  const iy = -(index.y - 0.5) * 6;
+  // Normalize to centered space
+  targetX = (index.x - 0.5) * 6;
+  targetY = -(index.y - 0.5) * 4;
 
-  cube.position.x = ix;
-  cube.position.y = iy;
-  ring.position.x = ix;
-  ring.position.y = iy;
+  // Depth using hand size (distance wrist → index)
+  const dx = index.x - wrist.x;
+  const dy = index.y - wrist.y;
+  const handSize = Math.sqrt(dx*dx + dy*dy);
 
-  const dx = index.x - thumb.x;
-  const dy = index.y - thumb.y;
-  pinchStrength = Math.sqrt(dx*dx + dy*dy);
+  targetZ = THREE.MathUtils.clamp(
+    -handSize * 8,
+    -6,
+    -2
+  );
+
+  // Pinch detection
+  const pinchDist = Math.hypot(
+    index.x - thumb.x,
+    index.y - thumb.y
+  );
+
+  cube.userData.pinch = pinchDist < 0.04;
 });
+
 
 // ================= CAMERA =================
 const cam = new Camera(video, {
@@ -132,20 +154,31 @@ cam.start();
 function animate() {
   requestAnimationFrame(animate);
 
-  cube.rotation.x += 0.01;
-  cube.rotation.y += 0.015;
+  // Smooth movement (THIS IS THE MAGIC)
+  smoothX += (targetX - smoothX) * 0.12;
+  smoothY += (targetY - smoothY) * 0.12;
+  smoothZ += (targetZ - smoothZ) * 0.12;
 
-  if (pinchStrength < 0.04) {
-    cube.scale.set(1.8, 1.8, 1.8);
-    ring.scale.set(1.4, 1.4, 1.4);
+  cube.position.set(smoothX, smoothY, smoothZ);
+  ring.position.set(smoothX, smoothY, smoothZ);
+
+  // Rotation
+  cube.rotation.x += 0.008;
+  cube.rotation.y += 0.01;
+
+  // Pinch scaling
+  if (cube.userData.pinch) {
+    cube.scale.set(1.6, 1.6, 1.6);
+    ring.scale.set(1.3, 1.3, 1.3);
   } else {
     cube.scale.set(1, 1, 1);
     ring.scale.set(1, 1, 1);
   }
 
-  stars.rotation.y += 0.0005;
+  stars.rotation.y += 0.0004;
   renderer.render(scene, camera3D);
 }
+
 
 animate();
 
