@@ -1,98 +1,109 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158/build/three.module.js";
 
 // =======================
-// CORE SETUP
+// SCENE
 // =======================
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x000000, 0.02);
+scene.fog = new THREE.FogExp2(0x000000, 0.03);
 
 const camera = new THREE.PerspectiveCamera(
   75,
-  window.innerWidth / window.innerHeight,
+  innerWidth / innerHeight,
   0.1,
   1000
 );
-camera.position.z = 8;
+camera.position.z = 10;
 
-const renderer = new THREE.WebGLRenderer({
-  antialias: true,
-  powerPreference: "high-performance"
-});
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.outputColorSpace = THREE.SRGBColorSpace;
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
 
 // =======================
-// DEEP SPACE LIGHT
+// PARTICLES
 // =======================
-scene.add(new THREE.AmbientLight(0x404040, 0.4));
+const COUNT = 12000;
+const positions = new Float32Array(COUNT * 3);
+const colors = new Float32Array(COUNT * 3);
 
-const pointLight = new THREE.PointLight(0x00ffff, 2, 100);
-pointLight.position.set(5, 5, 5);
-scene.add(pointLight);
+const left = new THREE.Vector3(-3, 0, 0);
+const right = new THREE.Vector3(3, 0, 0);
 
-// =======================
-// STARFIELD (REAL SPACE)
-// =======================
-const starsGeometry = new THREE.BufferGeometry();
-const starCount = 5000;
-const positions = new Float32Array(starCount * 3);
+for (let i = 0; i < COUNT; i++) {
+  const i3 = i * 3;
+  const t = Math.random();
 
-for (let i = 0; i < starCount * 3; i++) {
-  positions[i] = (Math.random() - 0.5) * 300;
+  // Interpolated position
+  positions[i3] = THREE.MathUtils.lerp(left.x, right.x, t) + (Math.random() - 0.5);
+  positions[i3 + 1] = (Math.random() - 0.5) * 2;
+  positions[i3 + 2] = (Math.random() - 0.5) * 2;
+
+  // Color blend (green -> red)
+  colors[i3]     = t;
+  colors[i3 + 1] = 1 - t;
+  colors[i3 + 2] = 0.1;
 }
 
-starsGeometry.setAttribute(
-  "position",
-  new THREE.BufferAttribute(positions, 3)
-);
+const geometry = new THREE.BufferGeometry();
+geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
-const starsMaterial = new THREE.PointsMaterial({
-  color: 0xffffff,
-  size: 0.15,
+const material = new THREE.PointsMaterial({
+  size: 0.05,
+  vertexColors: true,
   transparent: true,
-  opacity: 0.8
+  opacity: 0.9,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
 });
 
-const stars = new THREE.Points(starsGeometry, starsMaterial);
-scene.add(stars);
+const particles = new THREE.Points(geometry, material);
+scene.add(particles);
 
 // =======================
-// WORMHOLE (CORE RESEARCH)
+// ATTRACTORS
 // =======================
-const wormholeGeometry = new THREE.TorusGeometry(2.5, 0.6, 64, 200);
-const wormholeMaterial = new THREE.MeshStandardMaterial({
-  color: 0x000000,
-  emissive: 0x00ffff,
-  emissiveIntensity: 1.5,
-  metalness: 1,
-  roughness: 0.05
-});
-
-const wormhole = new THREE.Mesh(wormholeGeometry, wormholeMaterial);
-scene.add(wormhole);
+const attractors = [left, right];
 
 // =======================
-// ANIMATION LOOP
+// ANIMATION
 // =======================
-function animate() {
+function animate(time) {
   requestAnimationFrame(animate);
 
-  wormhole.rotation.x += 0.003;
-  wormhole.rotation.y += 0.006;
+  const pos = geometry.attributes.position.array;
 
-  stars.rotation.y += 0.0005;
+  for (let i = 0; i < COUNT; i++) {
+    const i3 = i * 3;
+    const p = new THREE.Vector3(
+      pos[i3],
+      pos[i3 + 1],
+      pos[i3 + 2]
+    );
 
+    attractors.forEach((a, index) => {
+      const dir = a.clone().sub(p);
+      const dist = dir.length() + 0.5;
+      dir.normalize();
+      p.add(dir.multiplyScalar(0.003 * Math.sin(time * 0.001 + dist)));
+    });
+
+    pos[i3] = p.x;
+    pos[i3 + 1] = p.y;
+    pos[i3 + 2] = p.z;
+  }
+
+  geometry.attributes.position.needsUpdate = true;
   renderer.render(scene, camera);
 }
+
 animate();
 
 // =======================
 // RESIZE
 // =======================
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+addEventListener("resize", () => {
+  camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(innerWidth, innerHeight);
 });
