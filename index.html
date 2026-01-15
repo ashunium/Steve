@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>STEVE – Hand Tech Interface</title>
+<title>STEVE · Holographic Craft Interface</title>
 
 <style>
   body {
     margin: 0;
     overflow: hidden;
-    background: radial-gradient(circle at center, #050b16, #000);
-    font-family: Arial, sans-serif;
+    background: radial-gradient(circle at center, #05070c 0%, #000 70%);
+    font-family: "Segoe UI", sans-serif;
   }
 
   canvas {
@@ -22,32 +22,42 @@
     display: none;
   }
 
-  .hud-text {
+  .hud {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    color: #00ffff;
+    opacity: 0.7;
+    letter-spacing: 3px;
+    font-size: 14px;
+  }
+
+  .hud-right {
     position: absolute;
     bottom: 20px;
-    left: 20px;
-    color: cyan;
-    opacity: 0.7;
-    font-size: 14px;
-    letter-spacing: 2px;
+    right: 20px;
+    color: #00ffff;
+    opacity: 0.4;
+    font-size: 12px;
   }
 </style>
 </head>
 
 <body>
 
+<div class="hud">STEVE · CRAFT MODE</div>
+<div class="hud-right">HOLOGRAPHIC SYSTEM ONLINE</div>
+
 <video id="video" autoplay playsinline></video>
 <canvas id="canvas"></canvas>
-<div class="hud-text">STEVE SYSTEM · HAND INTERFACE ONLINE</div>
 
-<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
 <script>
-const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+const video = document.getElementById("video");
 
 function resize() {
   canvas.width = window.innerWidth;
@@ -56,53 +66,68 @@ function resize() {
 resize();
 window.addEventListener("resize", resize);
 
-// ========== DRAW FUNCTIONS ==========
-function drawCircle(x, y, r, color, glow=true) {
+// ========= DRAW HELPERS =========
+function glow(color, blur=25) {
+  ctx.shadowColor = color;
+  ctx.shadowBlur = blur;
+}
+
+function drawRing(x, y, r, color) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.strokeStyle = color;
   ctx.lineWidth = 2;
-  if (glow) {
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = color;
-  }
+  glow(color);
   ctx.stroke();
   ctx.shadowBlur = 0;
 }
 
-function drawTechBox(x, y, size) {
+function draw3DCube(x, y, size, depth) {
+  const s = size / 2;
+
   ctx.strokeStyle = "cyan";
   ctx.lineWidth = 1.5;
+  glow("cyan", 20);
 
-  ctx.strokeRect(x - size/2, y - size/2, size, size);
+  // front
+  ctx.strokeRect(x - s, y - s, size, size);
 
+  // back
+  ctx.strokeRect(x - s + depth, y - s - depth, size, size);
+
+  // connectors
   ctx.beginPath();
-  ctx.moveTo(x - size/2, y);
-  ctx.lineTo(x + size/2, y);
-  ctx.moveTo(x, y - size/2);
-  ctx.lineTo(x, y + size/2);
+  ctx.moveTo(x - s, y - s);
+  ctx.lineTo(x - s + depth, y - s - depth);
+  ctx.moveTo(x + s, y - s);
+  ctx.lineTo(x + s + depth, y - s - depth);
+  ctx.moveTo(x - s, y + s);
+  ctx.lineTo(x - s + depth, y + s - depth);
+  ctx.moveTo(x + s, y + s);
+  ctx.lineTo(x + s + depth, y + s - depth);
   ctx.stroke();
+
+  ctx.shadowBlur = 0;
 }
 
-function drawParticles(x, y) {
-  for (let i = 0; i < 25; i++) {
+function particles(x, y) {
+  for (let i = 0; i < 30; i++) {
     ctx.fillStyle = "rgba(0,255,255,0.5)";
     ctx.beginPath();
     ctx.arc(
-      x + Math.random()*60 - 30,
-      y + Math.random()*60 - 30,
+      x + Math.random()*80 - 40,
+      y + Math.random()*80 - 40,
       Math.random()*2,
       0,
-      Math.PI * 2
+      Math.PI*2
     );
     ctx.fill();
   }
 }
 
-// ========== MEDIAPIPE ==========
+// ========= MEDIAPIPE =========
 const hands = new Hands({
-  locateFile: (file) =>
-    `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
 });
 
 hands.setOptions({
@@ -117,45 +142,46 @@ hands.onResults(results => {
 
   if (!results.multiHandLandmarks) return;
 
-  for (const landmarks of results.multiHandLandmarks) {
-    const indexTip = landmarks[8];
-    const thumbTip = landmarks[4];
-    const palm = landmarks[0];
+  for (const lm of results.multiHandLandmarks) {
+    const palm = lm[0];
+    const index = lm[8];
+    const thumb = lm[4];
 
-    const ix = indexTip.x * canvas.width;
-    const iy = indexTip.y * canvas.height;
-    const tx = thumbTip.x * canvas.width;
-    const ty = thumbTip.y * canvas.height;
     const px = palm.x * canvas.width;
     const py = palm.y * canvas.height;
+    const ix = index.x * canvas.width;
+    const iy = index.y * canvas.height;
+    const tx = thumb.x * canvas.width;
+    const ty = thumb.y * canvas.height;
 
-    const pinchDist = Math.hypot(ix - tx, iy - ty);
+    const pinch = Math.hypot(ix - tx, iy - ty);
 
-    // Palm ring
-    drawCircle(px, py, 40, "rgba(0,255,255,0.6)");
+    // Palm energy core
+    drawRing(px, py, 45, "rgba(0,255,255,0.6)");
+    drawRing(px, py, 65, "rgba(0,255,255,0.3)");
 
     // Finger pointer
-    drawCircle(ix, iy, 10, "cyan");
+    drawRing(ix, iy, 8, "cyan");
 
-    // Pinch zoom box
-    if (pinchDist < 40) {
-      drawTechBox(ix, iy, 160);
-      drawParticles(ix, iy);
+    // Crafting cube
+    if (pinch < 40) {
+      draw3DCube(ix, iy, 160, 30);
+      particles(ix, iy);
     } else {
-      drawTechBox(ix, iy, 100);
+      draw3DCube(ix, iy, 120, 20);
     }
 
-    // Energy line
+    // Energy beam
     ctx.beginPath();
     ctx.moveTo(px, py);
     ctx.lineTo(ix, iy);
-    ctx.strokeStyle = "rgba(0,255,255,0.3)";
+    ctx.strokeStyle = "rgba(0,255,255,0.25)";
     ctx.lineWidth = 1;
     ctx.stroke();
   }
 });
 
-// ========== CAMERA ==========
+// ========= CAMERA =========
 const camera = new Camera(video, {
   onFrame: async () => {
     await hands.send({ image: video });
@@ -163,10 +189,8 @@ const camera = new Camera(video, {
   width: 640,
   height: 480
 });
-
 camera.start();
 </script>
 
 </body>
 </html>
-
