@@ -1,196 +1,159 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>STEVE · Holographic Craft Interface</title>
+<meta charset="UTF-8">
+<title>STEVE · 3D Holographic Space</title>
 
 <style>
   body {
     margin: 0;
     overflow: hidden;
-    background: radial-gradient(circle at center, #05070c 0%, #000 70%);
-    font-family: "Segoe UI", sans-serif;
+    background: black;
   }
-
-  canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-  }
-
-  #video {
-    display: none;
-  }
-
+  #video { display: none; }
   .hud {
     position: absolute;
     top: 20px;
     left: 20px;
     color: #00ffff;
-    opacity: 0.7;
     letter-spacing: 3px;
-    font-size: 14px;
-  }
-
-  .hud-right {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    color: #00ffff;
-    opacity: 0.4;
-    font-size: 12px;
+    opacity: 0.6;
+    font-family: Arial;
   }
 </style>
 </head>
 
 <body>
-
-<div class="hud">STEVE · CRAFT MODE</div>
-<div class="hud-right">HOLOGRAPHIC SYSTEM ONLINE</div>
-
+<div class="hud">STEVE · SPACE CRAFT MODE</div>
 <video id="video" autoplay playsinline></video>
-<canvas id="canvas"></canvas>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
 <script>
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
+// ================= THREE.JS SCENE =================
+const scene = new THREE.Scene();
+
+const camera3D = new THREE.PerspectiveCamera(
+  60,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
+camera3D.position.z = 6;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x000008);
+document.body.appendChild(renderer.domElement);
+
+// ================= STARFIELD =================
+const starsGeo = new THREE.BufferGeometry();
+const starsCount = 3000;
+const pos = [];
+
+for (let i = 0; i < starsCount; i++) {
+  pos.push(
+    (Math.random() - 0.5) * 200,
+    (Math.random() - 0.5) * 200,
+    -Math.random() * 200
+  );
+}
+
+starsGeo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+const starsMat = new THREE.PointsMaterial({ color: 0x00ffff, size: 0.15 });
+const stars = new THREE.Points(starsGeo, starsMat);
+scene.add(stars);
+
+// ================= HOLOGRAM CUBE =================
+const cubeGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+const cubeMat = new THREE.MeshBasicMaterial({
+  color: 0x00ffff,
+  wireframe: true
+});
+const cube = new THREE.Mesh(cubeGeo, cubeMat);
+scene.add(cube);
+
+// Glow ring
+const ringGeo = new THREE.RingGeometry(1.7, 1.9, 64);
+const ringMat = new THREE.MeshBasicMaterial({
+  color: 0x00ffff,
+  side: THREE.DoubleSide
+});
+const ring = new THREE.Mesh(ringGeo, ringMat);
+ring.rotation.x = Math.PI / 2;
+scene.add(ring);
+
+// ================= HAND TRACKING =================
 const video = document.getElementById("video");
+let pinchStrength = 0;
 
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-resize();
-window.addEventListener("resize", resize);
-
-// ========= DRAW HELPERS =========
-function glow(color, blur=25) {
-  ctx.shadowColor = color;
-  ctx.shadowBlur = blur;
-}
-
-function drawRing(x, y, r, color) {
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  glow(color);
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-}
-
-function draw3DCube(x, y, size, depth) {
-  const s = size / 2;
-
-  ctx.strokeStyle = "cyan";
-  ctx.lineWidth = 1.5;
-  glow("cyan", 20);
-
-  // front
-  ctx.strokeRect(x - s, y - s, size, size);
-
-  // back
-  ctx.strokeRect(x - s + depth, y - s - depth, size, size);
-
-  // connectors
-  ctx.beginPath();
-  ctx.moveTo(x - s, y - s);
-  ctx.lineTo(x - s + depth, y - s - depth);
-  ctx.moveTo(x + s, y - s);
-  ctx.lineTo(x + s + depth, y - s - depth);
-  ctx.moveTo(x - s, y + s);
-  ctx.lineTo(x - s + depth, y + s - depth);
-  ctx.moveTo(x + s, y + s);
-  ctx.lineTo(x + s + depth, y + s - depth);
-  ctx.stroke();
-
-  ctx.shadowBlur = 0;
-}
-
-function particles(x, y) {
-  for (let i = 0; i < 30; i++) {
-    ctx.fillStyle = "rgba(0,255,255,0.5)";
-    ctx.beginPath();
-    ctx.arc(
-      x + Math.random()*80 - 40,
-      y + Math.random()*80 - 40,
-      Math.random()*2,
-      0,
-      Math.PI*2
-    );
-    ctx.fill();
-  }
-}
-
-// ========= MEDIAPIPE =========
 const hands = new Hands({
   locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
 });
 
 hands.setOptions({
   maxNumHands: 1,
-  modelComplexity: 1,
-  minDetectionConfidence: 0.75,
-  minTrackingConfidence: 0.75
+  minDetectionConfidence: 0.7,
+  minTrackingConfidence: 0.7
 });
 
-hands.onResults(results => {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+hands.onResults(res => {
+  if (!res.multiHandLandmarks) return;
 
-  if (!results.multiHandLandmarks) return;
+  const lm = res.multiHandLandmarks[0];
+  const index = lm[8];
+  const thumb = lm[4];
 
-  for (const lm of results.multiHandLandmarks) {
-    const palm = lm[0];
-    const index = lm[8];
-    const thumb = lm[4];
+  const ix = (index.x - 0.5) * 8;
+  const iy = -(index.y - 0.5) * 6;
 
-    const px = palm.x * canvas.width;
-    const py = palm.y * canvas.height;
-    const ix = index.x * canvas.width;
-    const iy = index.y * canvas.height;
-    const tx = thumb.x * canvas.width;
-    const ty = thumb.y * canvas.height;
+  cube.position.x = ix;
+  cube.position.y = iy;
+  ring.position.x = ix;
+  ring.position.y = iy;
 
-    const pinch = Math.hypot(ix - tx, iy - ty);
-
-    // Palm energy core
-    drawRing(px, py, 45, "rgba(0,255,255,0.6)");
-    drawRing(px, py, 65, "rgba(0,255,255,0.3)");
-
-    // Finger pointer
-    drawRing(ix, iy, 8, "cyan");
-
-    // Crafting cube
-    if (pinch < 40) {
-      draw3DCube(ix, iy, 160, 30);
-      particles(ix, iy);
-    } else {
-      draw3DCube(ix, iy, 120, 20);
-    }
-
-    // Energy beam
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.lineTo(ix, iy);
-    ctx.strokeStyle = "rgba(0,255,255,0.25)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
+  const dx = index.x - thumb.x;
+  const dy = index.y - thumb.y;
+  pinchStrength = Math.sqrt(dx*dx + dy*dy);
 });
 
-// ========= CAMERA =========
-const camera = new Camera(video, {
-  onFrame: async () => {
-    await hands.send({ image: video });
-  },
+// ================= CAMERA =================
+const cam = new Camera(video, {
+  onFrame: async () => await hands.send({ image: video }),
   width: 640,
   height: 480
 });
-camera.start();
-</script>
+cam.start();
 
+// ================= ANIMATE =================
+function animate() {
+  requestAnimationFrame(animate);
+
+  cube.rotation.x += 0.01;
+  cube.rotation.y += 0.015;
+
+  if (pinchStrength < 0.04) {
+    cube.scale.set(1.8, 1.8, 1.8);
+    ring.scale.set(1.4, 1.4, 1.4);
+  } else {
+    cube.scale.set(1, 1, 1);
+    ring.scale.set(1, 1, 1);
+  }
+
+  stars.rotation.y += 0.0005;
+  renderer.render(scene, camera3D);
+}
+
+animate();
+
+window.addEventListener("resize", () => {
+  camera3D.aspect = window.innerWidth / window.innerHeight;
+  camera3D.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
 </body>
 </html>
