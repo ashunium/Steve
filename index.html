@@ -1,138 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>HAND SPACE LAB</title>
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background: black;
-    }
-    video {
-      display: none;
-    }
-  </style>
+  <meta charset="UTF-8">
+  <title>Research Lab</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<video id="video" autoplay playsinline></video>
+<div id="ui">
+  <h1>RESEARCH LAB</h1>
 
-<script type="module">
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.158/build/three.module.js";
-import { Hands } from "https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js";
-import { Camera } from "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js";
+  <div class="panel">
+    <button onclick="spawnMatter()">Spawn Matter</button>
+    <button onclick="mix()">Mix</button>
+    <button onclick="resetLab()">Reset</button>
+  </div>
 
-/* =====================
-   THREE.JS SCENE
-===================== */
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
-camera.position.z = 10;
+  <div class="panel">
+    <label>Energy</label>
+    <input type="range" min="0" max="100" value="50" id="energy">
+    
+    <label>Entropy</label>
+    <input type="range" min="0" max="100" value="30" id="entropy">
+  </div>
+</div>
 
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(devicePixelRatio);
-document.body.appendChild(renderer.domElement);
+<canvas id="lab"></canvas>
 
-/* =====================
-   PARTICLES
-===================== */
-const COUNT = 15000;
-const positions = new Float32Array(COUNT * 3);
-
-for (let i = 0; i < COUNT; i++) {
-  positions[i*3] = (Math.random() - 0.5) * 10;
-  positions[i*3+1] = (Math.random() - 0.5) * 10;
-  positions[i*3+2] = (Math.random() - 0.5) * 10;
-}
-
-const geo = new THREE.BufferGeometry();
-geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-
-const mat = new THREE.PointsMaterial({
-  color: 0x00ffff,
-  size: 0.04,
-  transparent: true,
-  blending: THREE.AdditiveBlending
-});
-
-const points = new THREE.Points(geo, mat);
-scene.add(points);
-
-/* =====================
-   HAND POSITION
-===================== */
-let handX = 0;
-let handY = 0;
-
-/* =====================
-   MEDIAPIPE HANDS
-===================== */
-const hands = new Hands({
-  locateFile: file =>
-    `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-});
-
-hands.setOptions({
-  maxNumHands: 1,
-  modelComplexity: 1,
-  minDetectionConfidence: 0.7,
-  minTrackingConfidence: 0.7
-});
-
-hands.onResults(results => {
-  if (results.multiHandLandmarks) {
-    const tip = results.multiHandLandmarks[0][8]; // index finger tip
-    handX = (tip.x - 0.5) * 10;
-    handY = -(tip.y - 0.5) * 10;
-  }
-});
-
-/* =====================
-   CAMERA INPUT
-===================== */
-const video = document.getElementById("video");
-const cam = new Camera(video, {
-  onFrame: async () => {
-    await hands.send({ image: video });
-  },
-  width: 640,
-  height: 480
-});
-cam.start();
-
-/* =====================
-   ANIMATION LOOP
-===================== */
-function animate() {
-  requestAnimationFrame(animate);
-
-  const arr = geo.attributes.position.array;
-
-  for (let i = 0; i < COUNT; i++) {
-    const i3 = i * 3;
-
-    const dx = handX - arr[i3];
-    const dy = handY - arr[i3+1];
-    const dist = Math.sqrt(dx*dx + dy*dy) + 0.3;
-
-    arr[i3]     += dx / dist * 0.03;
-    arr[i3 + 1] += dy / dist * 0.03;
-  }
-
-  geo.attributes.position.needsUpdate = true;
-  renderer.render(scene, camera);
-}
-
-animate();
-
-window.addEventListener("resize", () => {
-  camera.aspect = innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
-</script>
-
+<script src="lab.js"></script>
 </body>
 </html>
