@@ -1,1 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>STEVE – Hand Tech Interface</title>
+
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: radial-gradient(circle at center, #050b16, #000);
+    font-family: Arial, sans-serif;
+  }
+
+  canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+
+  #video {
+    display: none;
+  }
+
+  .hud-text {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    color: cyan;
+    opacity: 0.7;
+    font-size: 14px;
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+
+<body>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas"></canvas>
+<div class="hud-text">STEVE SYSTEM · HAND INTERFACE ONLINE</div>
+
+<!-- MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+// ========== DRAW FUNCTIONS ==========
+function drawCircle(x, y, r, color, glow=true) {
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  if (glow) {
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = color;
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function drawTechBox(x, y, size) {
+  ctx.strokeStyle = "cyan";
+  ctx.lineWidth = 1.5;
+
+  ctx.strokeRect(x - size/2, y - size/2, size, size);
+
+  ctx.beginPath();
+  ctx.moveTo(x - size/2, y);
+  ctx.lineTo(x + size/2, y);
+  ctx.moveTo(x, y - size/2);
+  ctx.lineTo(x, y + size/2);
+  ctx.stroke();
+}
+
+function drawParticles(x, y) {
+  for (let i = 0; i < 25; i++) {
+    ctx.fillStyle = "rgba(0,255,255,0.5)";
+    ctx.beginPath();
+    ctx.arc(
+      x + Math.random()*60 - 30,
+      y + Math.random()*60 - 30,
+      Math.random()*2,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
+}
+
+// ========== MEDIAPIPE ==========
+const hands = new Hands({
+  locateFile: (file) =>
+    `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+
+hands.setOptions({
+  maxNumHands: 1,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.75,
+  minTrackingConfidence: 0.75
+});
+
+hands.onResults(results => {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!results.multiHandLandmarks) return;
+
+  for (const landmarks of results.multiHandLandmarks) {
+    const indexTip = landmarks[8];
+    const thumbTip = landmarks[4];
+    const palm = landmarks[0];
+
+    const ix = indexTip.x * canvas.width;
+    const iy = indexTip.y * canvas.height;
+    const tx = thumbTip.x * canvas.width;
+    const ty = thumbTip.y * canvas.height;
+    const px = palm.x * canvas.width;
+    const py = palm.y * canvas.height;
+
+    const pinchDist = Math.hypot(ix - tx, iy - ty);
+
+    // Palm ring
+    drawCircle(px, py, 40, "rgba(0,255,255,0.6)");
+
+    // Finger pointer
+    drawCircle(ix, iy, 10, "cyan");
+
+    // Pinch zoom box
+    if (pinchDist < 40) {
+      drawTechBox(ix, iy, 160);
+      drawParticles(ix, iy);
+    } else {
+      drawTechBox(ix, iy, 100);
+    }
+
+    // Energy line
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(ix, iy);
+    ctx.strokeStyle = "rgba(0,255,255,0.3)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+});
+
+// ========== CAMERA ==========
+const camera = new Camera(video, {
+  onFrame: async () => {
+    await hands.send({ image: video });
+  },
+  width: 640,
+  height: 480
+});
+
+camera.start();
+</script>
+
+</body>
+</html>
 
